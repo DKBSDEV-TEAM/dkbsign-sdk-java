@@ -50,8 +50,8 @@ public final class QuickStartExample {
         System.out.println("Signing with OTP (" + otpCode.length() + " digits)...");
 
         SelfSignRequest request = SelfSignRequest.builder()
-                .file(Path.of("src/test/resources/Memoire.pdf"))
-                .signatureImage(Path.of("src/test/resources/image.png"))
+                .file(Path.of("src/test/resources/TEST JAVA.pdf"))
+                .signatureImage(Path.of("src/test/resources/image.jpeg"))
                 .level(SignatureLevel.SIMPLE)
                 .mark(0, SignatureMark.at(120, 200).size(200, 70).type(SignatureType.SIGNATURE))
                 .otpCode(otpCode) // exact string from email/SMS

@@ -4,6 +4,7 @@ import com.dkbsign.enums.SignatureLevel;
 import com.dkbsign.exception.DkbSignException;
 import com.dkbsign.http.ApiResponse;
 import com.dkbsign.http.HttpClient;
+import com.dkbsign.http.MultipartPart;
 import com.dkbsign.model.SelfSignParams;
 import com.dkbsign.response.OtpResponse;
 import com.dkbsign.response.SecondFactorResponse;
@@ -11,7 +12,10 @@ import com.dkbsign.response.SelfSignBatchResponse;
 import com.dkbsign.response.SelfSignResponse;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -58,23 +62,28 @@ public final class SelfSignService {
         }
 
         return httpClient.postMultipart(
-                SIGN_PATH,
-                request.files(),
-                paramsJson(request),
-                request.signatureImage(),
-                SelfSignResponse.class);
+                SIGN_PATH, selfSignParts(request), SelfSignResponse.class);
     }
 
     /** Signs every PDF of the request in one call; check {@link SelfSignBatchResponse#isPartial()}. */
     public SelfSignBatchResponse signAll(SelfSignRequest request) {
         Objects.requireNonNull(request, "request");
 
-        ApiResponse response = httpClient.postMultipartRaw(
-                SIGN_PATH,
-                request.files(),
-                paramsJson(request),
-                request.signatureImage());
+        ApiResponse response = httpClient.postMultipartRaw(SIGN_PATH, selfSignParts(request));
         return new SelfSignBatchResponse(response.statusCode(), response.body());
+    }
+
+    private List<MultipartPart> selfSignParts(SelfSignRequest request) {
+        List<MultipartPart> parts = new ArrayList<>();
+        String fileField = request.files().size() == 1 ? "file" : "files[]";
+        for (Path pdf : request.files()) {
+            parts.add(MultipartPart.file(fileField, pdf));
+        }
+        parts.add(MultipartPart.text("params", paramsJson(request)));
+        if (request.signatureImage() != null) {
+            parts.add(MultipartPart.file("signature_image", request.signatureImage()));
+        }
+        return parts;
     }
 
     private String paramsJson(SelfSignRequest request) {

@@ -106,11 +106,7 @@ public final class EnvelopeSigner {
             return this;
         }
 
-        /**
-         * Adds a mark on document {@code documentIndex}. Each mark must include {@code page}
-         * for coordinate placement (use {@link SignatureMark#onPage(int)} on anchor marks,
-         * or {@link #mark(int, int, SignatureMark)}).
-         */
+        /** Adds a mark on document {@code documentIndex} (see {@link #mark(int, int, SignatureMark)} for coordinates). */
         public Builder mark(String documentIndex, SignatureMark mark) {
             Objects.requireNonNull(mark, "mark");
             if (documentIndex == null || documentIndex.isBlank()) {
@@ -120,13 +116,65 @@ public final class EnvelopeSigner {
             return this;
         }
 
-
         public Builder mark(int documentIndex, SignatureMark mark) {
             return mark(String.valueOf(documentIndex), mark);
         }
 
+        /** Coordinate marks get {@code page} set automatically when missing. */
+        public Builder mark(int documentIndex, int page, SignatureMark mark) {
+            if (page < 0) {
+                throw new IllegalArgumentException("page must be >= 0");
+            }
+            return mark(documentIndex, withPage(mark, page));
+        }
+
+        public Builder mark(int documentIndex, int page, List<SignatureMark> marks) {
+            if (marks == null || marks.isEmpty()) {
+                throw new IllegalArgumentException("At least one mark is required");
+            }
+            for (SignatureMark mark : marks) {
+                mark(documentIndex, page, mark);
+            }
+            return this;
+        }
+
+        public Builder mark(int documentIndex, int page, SignatureMark... marks) {
+            return mark(documentIndex, page, marks == null ? null : List.of(marks));
+        }
+
+        /** Anchor-only marks on a document (no {@code page} on coordinate marks). */
+        public Builder markAnchor(int documentIndex, SignatureMark anchorMark) {
+            Objects.requireNonNull(anchorMark, "anchorMark");
+            if (anchorMark.getAnchor() == null) {
+                throw new IllegalArgumentException("anchorMark must be created with SignatureMark.anchor()");
+            }
+            return mark(documentIndex, anchorMark);
+        }
+
         public EnvelopeSigner build() {
+            for (List<SignatureMark> marks : positions.values()) {
+                for (SignatureMark mark : marks) {
+                    if (mark.getX() != null && mark.getY() != null && mark.getPage() == null) {
+                        throw new IllegalStateException(
+                                "Coordinate marks require page: use mark(documentIndex, page, mark) "
+                                        + "or SignatureMark.at(...).onPage(n)");
+                    }
+                }
+            }
             return new EnvelopeSigner(this);
+        }
+
+        private static SignatureMark withPage(SignatureMark mark, int page) {
+            if (mark.getX() != null && mark.getY() != null) {
+                if (mark.getPage() != null && mark.getPage() != page) {
+                    throw new IllegalArgumentException(
+                            "mark already has page " + mark.getPage() + ", requested " + page);
+                }
+                if (mark.getPage() == null) {
+                    return mark.onPage(page);
+                }
+            }
+            return mark;
         }
 
         private static String blankToNull(String value) {

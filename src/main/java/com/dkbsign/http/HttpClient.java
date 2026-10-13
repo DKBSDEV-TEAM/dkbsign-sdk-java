@@ -13,12 +13,13 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 
 public class HttpClient {
 
@@ -79,30 +80,18 @@ public class HttpClient {
         }
     }
 
-    /** One PDF is sent as {@code file}, several as {@code files[]}. */
-    public <T> T postMultipart(
-            String path,
-            List<Path> pdfFiles,
-            String paramsJson,
-            Path signatureImage,
-            Class<T> responseType) {
-        Request request = multipartRequest(path, pdfFiles, paramsJson, signatureImage);
+    public <T> T postMultipart(String path, List<MultipartPart> parts, Class<T> responseType) {
         try {
-            return execute(request, responseType);
+            return execute(buildMultipartRequest(path, parts), responseType);
         } catch (IOException e) {
             throw multipartFailure(e);
         }
     }
 
-    /** Same as {@link #postMultipart} but keeps the HTTP status, e.g. to detect a 207 partial success. */
-    public ApiResponse postMultipartRaw(
-            String path,
-            List<Path> pdfFiles,
-            String paramsJson,
-            Path signatureImage) {
-        Request request = multipartRequest(path, pdfFiles, paramsJson, signatureImage);
+    /** Keeps the HTTP status, e.g. to detect a 207 partial success. */
+    public ApiResponse postMultipartRaw(String path, List<MultipartPart> parts) {
         try {
-            RawResponse raw = send(request);
+            RawResponse raw = send(buildMultipartRequest(path, parts));
             JsonNode body = raw.body().isBlank()
                     ? objectMapper.nullNode()
                     : objectMapper.readTree(raw.body());
@@ -114,42 +103,65 @@ public class HttpClient {
         }
     }
 
+    public void delete(String path) {
+        try {
+            Request request = authorizedRequest(path).delete().build();
+            execute(request, Void.class);
+        } catch (IOException e) {
+            throw new DkbSignException("Failed to send DELETE request", e);
+        }
+    }
+
+    /** Downloads a binary resource (PDF, file). On error, parses JSON error bodies when possible. */
+    public byte[] getBytes(String path) {
+        try {
+            Request request = authorizedRequest(path)
+                    .get()
+                    .header("Accept", "*/*")
+                    .build();
+            try (Response response = okHttpClient.newCall(request).execute()) {
+                byte[] body = response.body() != null ? response.body().bytes() : new byte[0];
+                if (!response.isSuccessful()) {
+                    throw apiException(response.code(), new String(body, StandardCharsets.UTF_8));
+                }
+                return body;
+            }
+        } catch (IOException e) {
+            throw new DkbSignException("Failed to download resource", e);
+        }
+    }
+
     public String writeJson(Object value) throws IOException {
         return objectMapper.writeValueAsString(value);
     }
 
-    private Request multipartRequest(
-            String path,
-            List<Path> pdfFiles,
-            String paramsJson,
-            Path signatureImage) {
-        if (pdfFiles == null || pdfFiles.isEmpty()) {
-            throw new IllegalArgumentException("At least one PDF file is required");
+    private Request buildMultipartRequest(String path, List<MultipartPart> parts) {
+        if (parts == null || parts.isEmpty()) {
+            throw new IllegalArgumentException("At least one multipart part is required");
         }
-        String filePart = pdfFiles.size() == 1 ? "file" : "files[]";
-
-        MultipartBody.Builder builder = new MultipartBody.Builder().setType(MultipartBody.FORM);
-        for (Path pdfFile : pdfFiles) {
-            builder.addFormDataPart(
-                    filePart,
-                    pdfFile.getFileName().toString(),
-                    RequestBody.create(pdfFile.toFile(), mediaTypeFor(pdfFile)));
+        MultipartBody.Builder body = new MultipartBody.Builder().setType(MultipartBody.FORM);
+        for (MultipartPart part : parts) {
+            if (part.isFile()) {
+                Path file = part.file();
+                body.addFormDataPart(
+                        part.fieldName(),
+                        file.getFileName().toString(),
+                        RequestBody.create(file.toFile(), mediaTypeFor(file)));
+            } else {
+                body.addFormDataPart(
+                        part.fieldName(),
+                        null,
+                        RequestBody.create(part.textContent(), JSON));
+            }
         }
-        builder.addFormDataPart("params", null, RequestBody.create(paramsJson, JSON));
+        return authorizedRequest(path).post(body.build()).build();
+    }
 
-        if (signatureImage != null) {
-            builder.addFormDataPart(
-                    "signature_image",
-                    signatureImage.getFileName().toString(),
-                    RequestBody.create(signatureImage.toFile(), mediaTypeFor(signatureImage)));
-        }
-
+    private Request.Builder authorizedRequest(String path) {
         return new Request.Builder()
                 .url(baseUrl + path)
                 .addHeader("Authorization", "Bearer " + token)
-                .header("Accept", "application/json")
-                .post(builder.build())
-                .build();
+                .header("Accept", "application/json");
     }
 
     private static DkbSignException multipartFailure(IOException e) {
@@ -184,20 +196,22 @@ public class HttpClient {
                     : "";
 
             if (!response.isSuccessful()) {
-                ApiErrorDetails details = parseApiError(responseBody);
-
-                throw new DkbSignException(
-                        "API request failed: HTTP " + response.code(),
-                        response.code(),
-                        responseBody,
-                        details.errorCode(),
-                        details.apiMessage(),
-                        details.fieldErrors()
-                );
+                throw apiException(response.code(), responseBody);
             }
 
             return new RawResponse(response.code(), responseBody);
         }
+    }
+
+    private DkbSignException apiException(int statusCode, String responseBody) {
+        ApiErrorDetails details = parseApiError(responseBody);
+        return new DkbSignException(
+                "API request failed: HTTP " + statusCode,
+                statusCode,
+                responseBody,
+                details.errorCode(),
+                details.apiMessage(),
+                details.fieldErrors());
     }
 
     private record RawResponse(int statusCode, String body) {

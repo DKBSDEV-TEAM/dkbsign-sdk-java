@@ -26,10 +26,7 @@ class EnvelopePayloadTest {
                         .firstName("Jean")
                         .phone("+2250700000001")
                         .priority(1)
-                        .mark(0, SignatureMark.at(120, 200)
-                                .onPage(0)
-                                .size(200, 70)
-                                .type(SignatureType.SIGNATURE))
+                        .mark(0, 0, SignatureMark.at(120, 200).size(200, 70).type(SignatureType.SIGNATURE))
                         .build())
                 .build();
 
