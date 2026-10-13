@@ -49,8 +49,13 @@ class SignatureMarkTest {
     }
 
     @Test
-    void pageAndOccurrenceOnlyApplyToAnchors() {
-        assertThrows(IllegalStateException.class, () -> SignatureMark.at(10, 10).onPage(0));
+    void coordinateMarkCanSetPage() throws Exception {
+        SignatureMark mark = SignatureMark.at(10, 10).onPage(2);
+        assertEquals("{\"x\":10.0,\"y\":10.0,\"page\":2}", mapper.writeValueAsString(mark));
+    }
+
+    @Test
+    void occurrenceOnlyAppliesToAnchors() {
         assertThrows(IllegalStateException.class, () -> SignatureMark.at(10, 10).occurrence(0));
     }
 }

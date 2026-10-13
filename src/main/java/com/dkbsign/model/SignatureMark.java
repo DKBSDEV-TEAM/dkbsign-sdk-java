@@ -65,8 +65,8 @@ public final class SignatureMark {
     }
 
 
+    /** 0-based page: required for coordinate marks in envelopes; optional anchor search limit for self-sign. */
     public SignatureMark onPage(int page) {
-        requireAnchor("onPage");
         if (page < 0) {
             throw new IllegalArgumentException("page must be >= 0");
         }
