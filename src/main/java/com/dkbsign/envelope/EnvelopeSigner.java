@@ -92,7 +92,7 @@ public final class EnvelopeSigner {
             return this;
         }
 
-        /** E.164 format, e.g. {@code +2250700000001}. */
+
         public Builder phone(String phone) {
             this.phone = blankToNull(phone);
             return this;
@@ -106,7 +106,7 @@ public final class EnvelopeSigner {
             return this;
         }
 
-        /** Adds a mark on document {@code documentIndex} (see {@link #mark(int, int, SignatureMark)} for coordinates). */
+
         public Builder mark(String documentIndex, SignatureMark mark) {
             Objects.requireNonNull(mark, "mark");
             if (documentIndex == null || documentIndex.isBlank()) {
@@ -120,7 +120,7 @@ public final class EnvelopeSigner {
             return mark(String.valueOf(documentIndex), mark);
         }
 
-        /** Coordinate marks get {@code page} set automatically when missing. */
+
         public Builder mark(int documentIndex, int page, SignatureMark mark) {
             if (page < 0) {
                 throw new IllegalArgumentException("page must be >= 0");
@@ -142,7 +142,7 @@ public final class EnvelopeSigner {
             return mark(documentIndex, page, marks == null ? null : List.of(marks));
         }
 
-        /** Anchor-only marks on a document (no {@code page} on coordinate marks). */
+
         public Builder markAnchor(int documentIndex, SignatureMark anchorMark) {
             Objects.requireNonNull(anchorMark, "anchorMark");
             if (anchorMark.getAnchor() == null) {

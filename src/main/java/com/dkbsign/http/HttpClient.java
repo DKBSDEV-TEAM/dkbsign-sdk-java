@@ -31,9 +31,10 @@ public class HttpClient {
     private final OkHttpClient okHttpClient;
     private final ObjectMapper objectMapper;
 
+    /** {@code token} may be null for unauthenticated calls ({@link #postPublicJson}). */
     public HttpClient(String baseUrl, String token) {
         this.baseUrl = normalizeBaseUrl(baseUrl);
-        this.token = token;
+        this.token = token == null ? null : token.trim();
         this.okHttpClient = new OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .writeTimeout(5, TimeUnit.MINUTES)
@@ -44,6 +45,7 @@ public class HttpClient {
     }
 
     public <T> T getJson(String path, Map<String, String> query, Class<T> responseType) {
+        requireToken();
         HttpUrl parsed = HttpUrl.parse(baseUrl + path);
         if (parsed == null) {
             throw new IllegalArgumentException("Invalid URL: " + baseUrl + path);
@@ -53,12 +55,7 @@ public class HttpClient {
             query.forEach(url::addQueryParameter);
         }
         try {
-            Request request = new Request.Builder()
-                    .url(url.build())
-                    .addHeader("Authorization", "Bearer " + token)
-                    .header("Accept", "application/json")
-                    .get()
-                    .build();
+            Request request = authorizedRequest(url.build().toString()).get().build();
             return execute(request, responseType);
         } catch (IOException e) {
             throw new DkbSignException("Failed to send GET request", e);
@@ -66,11 +63,67 @@ public class HttpClient {
     }
 
     public <T> T postJson(String path, Object body, Class<T> responseType) {
+        requireToken();
+        try {
+            String json = body == null ? "{}" : objectMapper.writeValueAsString(body);
+            Request request = authorizedRequest(path)
+                    .post(RequestBody.create(json, JSON))
+                    .build();
+            return execute(request, responseType);
+        } catch (IOException e) {
+            throw new DkbSignException("Failed to send JSON request", e);
+        }
+    }
+
+    public <T> T getPublicJson(String path, Map<String, String> query, Class<T> responseType) {
+        HttpUrl parsed = HttpUrl.parse(baseUrl + path);
+        if (parsed == null) {
+            throw new IllegalArgumentException("Invalid URL: " + baseUrl + path);
+        }
+        HttpUrl.Builder url = parsed.newBuilder();
+        if (query != null) {
+            query.forEach(url::addQueryParameter);
+        }
+        try {
+            Request request = publicRequest(url.build().toString()).get().build();
+            return execute(request, responseType);
+        } catch (IOException e) {
+            throw new DkbSignException("Failed to send GET request", e);
+        }
+    }
+
+    public byte[] getPublicBytes(String path, Map<String, String> query) {
+        HttpUrl parsed = HttpUrl.parse(baseUrl + path);
+        if (parsed == null) {
+            throw new IllegalArgumentException("Invalid URL: " + baseUrl + path);
+        }
+        HttpUrl.Builder url = parsed.newBuilder();
+        if (query != null) {
+            query.forEach(url::addQueryParameter);
+        }
+        try {
+            Request request = publicRequest(url.build().toString())
+                    .get()
+                    .header("Accept", "*/*")
+                    .build();
+            try (Response response = okHttpClient.newCall(request).execute()) {
+                byte[] body = response.body() != null ? response.body().bytes() : new byte[0];
+                if (!response.isSuccessful()) {
+                    throw apiException(response.code(), new String(body, StandardCharsets.UTF_8));
+                }
+                return body;
+            }
+        } catch (IOException e) {
+            throw new DkbSignException("Failed to download resource", e);
+        }
+    }
+
+
+    public <T> T postPublicJson(String path, Object body, Class<T> responseType) {
         try {
             String json = body == null ? "{}" : objectMapper.writeValueAsString(body);
             Request request = new Request.Builder()
                     .url(baseUrl + path)
-                    .addHeader("Authorization", "Bearer " + token)
                     .header("Accept", "application/json")
                     .post(RequestBody.create(json, JSON))
                     .build();
@@ -80,18 +133,28 @@ public class HttpClient {
         }
     }
 
-    public <T> T postMultipart(String path, List<MultipartPart> parts, Class<T> responseType) {
+    public <T> T postPublicMultipart(String path, List<MultipartPart> parts, Class<T> responseType) {
         try {
-            return execute(buildMultipartRequest(path, parts), responseType);
+            return execute(buildMultipartRequest(path, parts, false), responseType);
         } catch (IOException e) {
             throw multipartFailure(e);
         }
     }
 
-    /** Keeps the HTTP status, e.g. to detect a 207 partial success. */
-    public ApiResponse postMultipartRaw(String path, List<MultipartPart> parts) {
+    public <T> T postMultipart(String path, List<MultipartPart> parts, Class<T> responseType) {
+        requireToken();
         try {
-            RawResponse raw = send(buildMultipartRequest(path, parts));
+            return execute(buildMultipartRequest(path, parts, true), responseType);
+        } catch (IOException e) {
+            throw multipartFailure(e);
+        }
+    }
+
+
+    public ApiResponse postMultipartRaw(String path, List<MultipartPart> parts) {
+        requireToken();
+        try {
+            RawResponse raw = send(buildMultipartRequest(path, parts, true));
             JsonNode body = raw.body().isBlank()
                     ? objectMapper.nullNode()
                     : objectMapper.readTree(raw.body());
@@ -104,6 +167,7 @@ public class HttpClient {
     }
 
     public void delete(String path) {
+        requireToken();
         try {
             Request request = authorizedRequest(path).delete().build();
             execute(request, Void.class);
@@ -112,8 +176,9 @@ public class HttpClient {
         }
     }
 
-    /** Downloads a binary resource (PDF, file). On error, parses JSON error bodies when possible. */
+
     public byte[] getBytes(String path) {
+        requireToken();
         try {
             Request request = authorizedRequest(path)
                     .get()
@@ -135,7 +200,7 @@ public class HttpClient {
         return objectMapper.writeValueAsString(value);
     }
 
-    private Request buildMultipartRequest(String path, List<MultipartPart> parts) {
+    private Request buildMultipartRequest(String path, List<MultipartPart> parts, boolean authenticated) {
         if (parts == null || parts.isEmpty()) {
             throw new IllegalArgumentException("At least one multipart part is required");
         }
@@ -147,6 +212,8 @@ public class HttpClient {
                         part.fieldName(),
                         file.getFileName().toString(),
                         RequestBody.create(file.toFile(), mediaTypeFor(file)));
+            } else if (part.kind() == MultipartPart.Kind.FORM_FIELD) {
+                body.addFormDataPart(part.fieldName(), part.textContent());
             } else {
                 body.addFormDataPart(
                         part.fieldName(),
@@ -154,14 +221,28 @@ public class HttpClient {
                         RequestBody.create(part.textContent(), JSON));
             }
         }
-        return authorizedRequest(path).post(body.build()).build();
+        Request.Builder builder = authenticated ? authorizedRequest(path) : publicRequest(path);
+        return builder.post(body.build()).build();
+    }
+
+    private Request.Builder publicRequest(String path) {
+        return new Request.Builder()
+                .url(path.startsWith("http") ? path : baseUrl + path)
+                .header("Accept", "application/json");
     }
 
     private Request.Builder authorizedRequest(String path) {
-        return new Request.Builder()
-                .url(baseUrl + path)
-                .addHeader("Authorization", "Bearer " + token)
-                .header("Accept", "application/json");
+        Request.Builder builder = new Request.Builder().url(path.startsWith("http") ? path : baseUrl + path);
+        if (token != null && !token.isBlank()) {
+            builder.addHeader("Authorization", "Bearer " + token);
+        }
+        return builder.header("Accept", "application/json");
+    }
+
+    private void requireToken() {
+        if (token == null || token.isBlank()) {
+            throw new IllegalStateException("Bearer token is required — login first or pass token to the client");
+        }
     }
 
     private static DkbSignException multipartFailure(IOException e) {
@@ -188,7 +269,7 @@ public class HttpClient {
         }
     }
 
-    /** Sends the request and throws {@link DkbSignException} on any non-2xx status. */
+
     private RawResponse send(Request request) throws IOException {
         try (Response response = okHttpClient.newCall(request).execute()) {
             String responseBody = response.body() != null
@@ -245,6 +326,10 @@ public class HttpClient {
 
             if (apiMessage == null && error != null && error.isObject()) {
                 apiMessage = textValue(error.get("message"));
+            }
+
+            if (apiMessage == null && error != null && error.isTextual()) {
+                apiMessage = error.asText();
             }
 
             // On conserve les erreurs de validation pour chaque champ

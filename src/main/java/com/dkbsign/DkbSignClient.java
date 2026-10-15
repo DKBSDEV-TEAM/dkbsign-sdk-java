@@ -2,9 +2,10 @@ package com.dkbsign;
 
 import com.dkbsign.envelope.EnvelopeService;
 import com.dkbsign.http.HttpClient;
+import com.dkbsign.publicenvelope.PublicEnvelopeService;
 import com.dkbsign.signature.SelfSignService;
 
-/** Entry point of the SDK. Thread-safe and meant to be created once and reused. */
+
 public final class DkbSignClient {
 
     public static final String DEFAULT_BASE_URL = "https://api.dkbsigns.com";
@@ -28,6 +29,18 @@ public final class DkbSignClient {
 
     public EnvelopeService envelopes() {
         return envelopes;
+    }
+
+    /**
+     * Public signer flow (no login). {@code signerUuid} is the UUID from {@code signing_url}
+     * ({@code /api/v4/public/envelopes/{signer_uuid}}).
+     */
+    public static PublicEnvelopeService publicSigning(String signerUuid) {
+        return PublicEnvelopeService.create(signerUuid);
+    }
+
+    public static PublicEnvelopeService publicSigning(String baseUrl, String signerUuid) {
+        return PublicEnvelopeService.create(baseUrl, signerUuid);
     }
 
     public static final class Builder {
