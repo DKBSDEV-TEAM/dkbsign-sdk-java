@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Collections;
 import java.util.List;
 
-/** Envelope returned by {@code GET /api/v4/envelopes/{batch_id}} (partial schema). */
+
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class EnvelopeDetail {
 

@@ -40,7 +40,7 @@ public final class EnvelopeService {
         for (Path document : request.documents()) {
             parts.add(MultipartPart.file("documents[]", document));
         }
-        parts.add(MultipartPart.text("payload", payloadJson));
+        parts.add(MultipartPart.jsonText("payload", payloadJson));
 
         for (Map.Entry<Integer, List<Path>> entry : request.attachmentsByDocument().entrySet()) {
             String field = "attachments_" + entry.getKey() + "[]";
@@ -52,7 +52,7 @@ public final class EnvelopeService {
         return httpClient.postMultipart(ENVELOPES_PATH, parts, CreateEnvelopeResponse.class);
     }
 
-    /** Initiator inbox (sent envelopes). */
+
     public EnvelopeListResult listSent() {
         return list(ENVELOPES_PATH);
     }

@@ -45,6 +45,12 @@ class HttpClientErrorTest {
     }
 
     @Test
+    void plainErrorString() {
+        DkbSignException e = fail(404, "{\"error\":\"Lien de signature invalide ou expiré\"}");
+        assertEquals("Lien de signature invalide ou expiré", e.getApiMessage());
+    }
+
+    @Test
     void signingErrorWithErrorCode() {
         DkbSignException e = fail(400, "{\"error\":\"Anchor missing\",\"error_code\":\"ANCHOR_NOT_FOUND\"}");
 

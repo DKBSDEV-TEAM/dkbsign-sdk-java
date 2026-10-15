@@ -15,7 +15,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-/** Immutable self-sign request. Build it with {@link #builder()}. */
+
 public final class SelfSignRequest {
 
     private final List<Path> files;
@@ -43,17 +43,17 @@ public final class SelfSignRequest {
         return new Builder();
     }
 
-    /** PDFs to sign; the same marks apply to each of them. */
+
     public List<Path> files() {
         return files;
     }
 
-    /** May be null: the image is optional. */
+
     public Path signatureImage() {
         return signatureImage;
     }
 
-    /** May be null: the server then applies its default level ({@code advanced}). */
+
     public SignatureLevel level() {
         return level;
     }
@@ -62,17 +62,17 @@ public final class SelfSignRequest {
         return pages;
     }
 
-    /** May be null: only required when the server enables {@code SIGN_OTP_REQUIRED}. */
+
     public String otpCode() {
         return otpCode;
     }
 
-    /** May be null: TOTP code for a qualified signature. */
+
     public String mfaCode() {
         return mfaCode;
     }
 
-    /** May be null: second email OTP for a qualified signature without TOTP. */
+
     public String secondOtpCode() {
         return secondOtpCode;
     }
@@ -93,7 +93,7 @@ public final class SelfSignRequest {
 
         private Builder() {}
 
-        /** Single PDF to sign, max 10 MB. Replaces any file set before. */
+
         public Builder file(Path path) {
             Path checked = requirePdf(path);
             files.clear();
@@ -154,7 +154,7 @@ public final class SelfSignRequest {
             return this;
         }
 
-        /** Adds marks on a 0-based page. Calling it again for the same page appends to it. */
+
         public Builder mark(int page, List<SignatureMark> marks) {
             if (page < 0) {
                 throw new IllegalArgumentException("page must be >= 0");
@@ -166,10 +166,7 @@ public final class SelfSignRequest {
             return mark(page, marks == null ? null : List.of(marks));
         }
 
-        /**
-         * Adds marks without a page, for anchor marks: the API searches the whole document.
-         * Use {@link SignatureMark#onPage(int)} to limit the search to one page.
-         */
+
         public Builder mark(List<SignatureMark> marks) {
             return addMarks(null, marks);
         }

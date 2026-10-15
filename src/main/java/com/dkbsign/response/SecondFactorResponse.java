@@ -9,7 +9,7 @@ public class SecondFactorResponse {
     private boolean required;
     private String message;
 
-    /** False means {@code sign()} can be called without {@code mfaCode} or {@code secondOtpCode}. */
+
     @JsonProperty("required")
     public boolean isRequired() {
         return required;

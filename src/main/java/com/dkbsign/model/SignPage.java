@@ -11,7 +11,7 @@ public class SignPage {
     private final Integer page;
     private final List<SignatureMark> signatures;
 
-    /** {@code page} is null for anchor marks, which the API searches across the document. */
+
     public SignPage(Integer page, List<SignatureMark> signatures) {
         this.page = page;
         this.signatures = List.copyOf(signatures);

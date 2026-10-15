@@ -3,7 +3,7 @@ package com.dkbsign.envelope;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
-/** Derived envelope status returned by list/show routes. */
+
 public enum EnvelopeStatus {
     PENDING("pending"),
     IN_PROGRESS("in_progress"),

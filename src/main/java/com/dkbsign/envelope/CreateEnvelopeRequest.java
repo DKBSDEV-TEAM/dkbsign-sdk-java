@@ -13,7 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-/** Immutable request to create an envelope ({@code POST /api/v4/envelopes}). */
+/** request to create an envelope ({@code POST /api/v4/envelopes}). */
 public final class CreateEnvelopeRequest {
 
     private final List<Path> documents;

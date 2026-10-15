@@ -38,10 +38,7 @@ public final class SelfSignService {
         return httpClient.postJson(OTP_PATH, Collections.emptyMap(), OtpResponse.class);
     }
 
-    /**
-     * Tells whether a qualified signature needs a TOTP ({@code mfaCode}) or a second email OTP
-     * ({@code secondOtpCode}). Call it before {@link #sign} at the qualified level.
-     */
+
     public SecondFactorResponse checkSecondFactor(SignatureLevel level) {
         Objects.requireNonNull(level, "level");
         return httpClient.getJson(
@@ -53,7 +50,7 @@ public final class SelfSignService {
         return httpClient.postJson(SECOND_OTP_PATH, Collections.emptyMap(), OtpResponse.class);
     }
 
-    /** Signs a single PDF. Use {@link #signAll} when the request holds several files. */
+
     public SelfSignResponse sign(SelfSignRequest request) {
         Objects.requireNonNull(request, "request");
         if (request.files().size() != 1) {
@@ -65,7 +62,7 @@ public final class SelfSignService {
                 SIGN_PATH, selfSignParts(request), SelfSignResponse.class);
     }
 
-    /** Signs every PDF of the request in one call; check {@link SelfSignBatchResponse#isPartial()}. */
+
     public SelfSignBatchResponse signAll(SelfSignRequest request) {
         Objects.requireNonNull(request, "request");
 
@@ -79,7 +76,7 @@ public final class SelfSignService {
         for (Path pdf : request.files()) {
             parts.add(MultipartPart.file(fileField, pdf));
         }
-        parts.add(MultipartPart.text("params", paramsJson(request)));
+        parts.add(MultipartPart.jsonText("params", paramsJson(request)));
         if (request.signatureImage() != null) {
             parts.add(MultipartPart.file("signature_image", request.signatureImage()));
         }
